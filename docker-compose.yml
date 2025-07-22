@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  honeypot:
+    build:
+      context: .
+      dockerfile: Dockerfile.honeypot
+    volumes:
+      - ./data:/data
+    ports:
+      - "443:443"
+    environment:
+      - DATA_DIR=/data
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    volumes:
+      - ./data:/data
+    ports:
+      - "8501:8501"
+    environment:
+      - DATA_DIR=/data 
