@@ -8,11 +8,12 @@ A Docker-based honeypot simulating a Microsoft IIS server vulnerable to the Tool
 - Logs requests in JSON, POST bodies in .bin, and daily ZIP archives
 - HTTPS with self-signed certificate
 - Streamlit dashboard for data visualization and download
-- **Realistic endpoints**: catch-all + dedicated routes for endpoints used in ToolShell/SharePoint campaigns
-- **IOC detection**: automatic tagging of suspicious requests based on threat intelligence indicators
-- **Apache/Nginx-style access.log**: SIEM-compatible log file
-- **Visual alert**: stdout alert for IOC detection
-- **Daily ZIP/log rotation**: daily archives of POST bodies
+- **Realistic endpoints:** catch-all + dedicated routes for endpoints used in ToolShell/SharePoint campaigns
+- **IOC detection:** automatic tagging of suspicious requests based on threat intelligence indicators
+- **Apache/Nginx-style access.log:** SIEM-compatible log file
+- **Visual alert:** stdout alert for IOC detection
+- **Daily ZIP/log rotation:** daily archives of POST bodies
+- **Dashboard features:** summary table with Time, Method, Path, IP, IOC; IOC filter; request details with safe body preview (hex and text); global downloads for all .bin, all JSON logs, and access.log
 
 ## Architecture
 
@@ -31,21 +32,32 @@ The server emulates and logs in detail:
 - `/_layouts/15/ToolPane.aspx` and `/_layouts/16/ToolPane.aspx` (POST/GET, parameters DisplayMode=Edit, a=/ToolPane.aspx)
 - `/_layouts/15/spinstall0.aspx`, `/_layouts/16/spinstall0.aspx`, `spinstall.aspx`, `spinstall1.aspx`, `info3.aspx`, `xxx.aspx`
 
-**Indicators of Compromise (IOC) detected and tagged in logs:**
-- POST to ToolPane.aspx with exploit parameters
-- Header Referer: `/_layouts/SignOut.aspx` (or variants with host)
-- User-Agent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0`
-- Probing GET/POST to known webshell endpoints
-- Presence of ViewState payload in POST
+## Indicators of Compromise (IOC) Detected
 
-Each request is logged in JSON, and if suspicious, is marked with the `ioc` field (array of detected indicators).
+Each request is analyzed for the following IOCs (Indicators of Compromise):
 
-## Logging and Data Collection
-- **JSON**: one file per request, with header, path, args, body_file, IOC
-- **.bin**: POST bodies
-- **ZIP**: daily archive of all POST bodies
-- **access.log**: Apache/Nginx-style log, one line per request, with IOC
-- **Visual alert**: stdout alert for IOC detection
+- **ToolPane exploit endpoint:** Requests to `/ToolPane.aspx` endpoints, especially with suspicious parameters.
+- **DisplayMode=Edit:** Presence of the `DisplayMode=Edit` parameter in the query string.
+- **a=/ToolPane.aspx:** Presence of the `a=/ToolPane.aspx` parameter in the query string.
+- **Referer SignOut.aspx:** Requests with the `Referer` header set to `/layouts/SignOut.aspx` or its variants.
+- **Suspicious User-Agent:** Requests with User-Agent strings known from real-world attacks (e.g., Firefox/120.0).
+- **Webshell probe:** Requests to known webshell endpoints (`spinstall0.aspx`, `spinstall.aspx`, `spinstall1.aspx`, `info3.aspx`, `xxx.aspx`).
+- **ViewState payload:** POST requests containing `__VIEWSTATE` in the body.
+
+**All detected IOCs are shown as badges in the dashboard and can be used to filter requests.**
+
+## Data Collected and Displayed
+
+- **Summary Table:** Shows Time, Method, Path, IP, and IOC for each request.
+- **Request Details:** For each request, you can view:
+  - All HTTP headers
+  - Query parameters
+  - Remote IP address
+  - IOC badges
+  - Body preview (hex for all, and as text if Content-Type is textual)
+  - Download buttons for body and JSON log
+- **Global Downloads:** Download all POST bodies (.bin) as a daily ZIP, all JSON logs as a ZIP, and the full access.log.
+- **Access Log:** Apache/Nginx-style log, one line per request, with IOC information.
 
 ## Quick Start
 
@@ -76,16 +88,13 @@ Each request is logged in JSON, and if suspicious, is marked with the `ioc` fiel
 - Dashboard and honeypot are separated for security
 - access.log is SIEM-compatible
 
-## Threat Intelligence Indicators and Sources
-- Indicators and patterns implemented based on:
-  - [Eye Security: SharePoint Under Siege](https://research.eye.security/sharepoint-under-siege/)
-  - SentinelOne, Talos, Sophos, PaloAlto Unit42
-- Main IOCs:
-  - POST to /ToolPane.aspx with exploit parameters
-  - Referer: /_layouts/SignOut.aspx
-  - User-Agent: Firefox/120.0
-  - Probing on spinstall0.aspx/info3.aspx/xxx.aspx
-  - ViewState in body
+## Threat Intelligence and Detection Logic
+
+The IOC patterns and detection logic are based on real-world attack campaigns and public threat intelligence for ToolShell/SharePoint vulnerabilities, including:
+- Exploit attempts on ToolPane.aspx endpoints with specific parameters
+- Use of known malicious Referer and User-Agent headers
+- Probing of webshell endpoints
+- Detection of ViewState payloads in POST bodies
 
 ## TODO
 - Webhook alerting, advanced parsing, SIEM integration, dashboard authentication... 
