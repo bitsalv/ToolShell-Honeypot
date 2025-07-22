@@ -76,11 +76,13 @@ Each request is analyzed for the following IOCs (Indicators of Compromise):
    ```
 3. Test the honeypot:
    ```bash
-   curl -k "https://localhost/_layouts/15/ToolPane.aspx?DisplayMode=Edit&a=/ToolPane.aspx" -X POST \
-     -H "Referer: /_layouts/SignOut.aspx" --data '<exploit>'
+   # Run the basic endpoint test script
+   ./test_toolshell.sh
+
+   # Run the body content test script (covers text, JSON, XML, form, binary, and IOC cases)
+   ./test_toolshell_bodies.sh
    ```
-4. Access the dashboard:
-   - http://localhost:8501
+   These scripts will send a variety of requests to the honeypot, simulating real-world attack and probe scenarios. After running them, check the dashboard at http://localhost:8501 to review the results, IOC detection, and data previews.
 
 ## Notes
 - Data is saved in ./data
