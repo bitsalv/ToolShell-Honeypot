@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 WORKDIR /app
-COPY honeypot.py .
+COPY honeypot.py ./
 COPY cert.pem key.pem ./
-RUN pip install flask
+COPY yara_rules/ ./yara_rules/
+RUN pip install flask yara-python
 VOLUME ["/data"]
 EXPOSE 443
 CMD ["python", "honeypot.py"] 

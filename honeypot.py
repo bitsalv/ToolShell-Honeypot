@@ -5,11 +5,23 @@ import zipfile
 from datetime import datetime, date
 from flask import Flask, request, make_response
 from functools import wraps
+import yara
+import re
+import base64
 
 app = Flask(__name__)
 DATA_DIR = os.environ.get('DATA_DIR', './data')
 IIS_HEADER = 'Microsoft-IIS/10.0'
 ACCESS_LOG = os.path.join(DATA_DIR, 'access.log')
+
+YARA_RULES_PATH = os.environ.get('YARA_RULES_PATH', '/app/yara_rules/')
+def load_yara_rules():
+    rule_files = [os.path.join(YARA_RULES_PATH, f) for f in os.listdir(YARA_RULES_PATH) if f.endswith('.yar')]
+    if rule_files:
+        return yara.compile(filepaths={os.path.basename(f): f for f in rule_files})
+    return None
+
+yara_rules = load_yara_rules()
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -52,6 +64,53 @@ def detect_iocs(path, headers, method, args, body):
         iocs.append('ViewState payload')
     return iocs
 
+def detect_potential_powershell_base64(body_bytes):
+    body_str = body_bytes.decode('utf-8', errors='ignore')
+    # Ampliamento pattern PowerShell
+    ps_patterns = [
+        "powershell", "FromBase64String", "IEX", "Invoke-Expression", "Invoke-WebRequest",
+        "New-Object Net.WebClient", "Set-ExecutionPolicy", "Add-MpPreference", "Start-Process",
+        "-EncodedCommand", "-Command", "-c", "[System.Convert]::FromBase64String", "[Text.Encoding]",
+        "DownloadString", "cmd.exe /c powershell", "Invoke-DownloadFile"
+    ]
+    found_patterns = [p for p in ps_patterns if p.lower() in body_str.lower()]
+    # Cerca anche pattern offuscati (es. I`E`X, concatenazione, char codes, variabili)
+    if re.search(r'I[`\-]?E[`\-]?X', body_str, re.IGNORECASE):
+        found_patterns.append('IEX (obfuscated)')
+    if re.search(r'("I"\s*\+\s*"EX")|(\'I\'\s*\+\s*\'EX\')', body_str, re.IGNORECASE):
+        found_patterns.append('IEX (concatenated)')
+    if re.search(r'\[char\]\d+\s*\+\s*\[char\]\d+', body_str):
+        found_patterns.append('Char code PowerShell')
+    if re.search(r'\$[a-zA-Z0-9_]+\s*=\s*["\']IEX["\']', body_str):
+        found_patterns.append('IEX (variable assignment)')
+    if re.search(r'cmd\.exe\s*/c\s*powershell', body_str, re.IGNORECASE):
+        found_patterns.append('cmd.exe /c powershell')
+    if re.search(r'IEX\s*\(', body_str, re.IGNORECASE):
+        found_patterns.append('IEX (function call)')
+    if re.search(r'Get-Content', body_str, re.IGNORECASE):
+        found_patterns.append('Get-Content pipeline')
+    if re.search(r'Invoke-Obfuscation', body_str, re.IGNORECASE):
+        found_patterns.append('Invoke-Obfuscation artifact')
+    # Cerca stringhe base64 lunghe (anche senza -EncodedCommand)
+    b64_candidates = re.findall(r'([A-Za-z0-9+/=]{40,})', body_str)
+    decoded = []
+    # Decodifica base64 sia UTF-8 che UTF-16LE
+    for b64 in b64_candidates:
+        for encoding in ['utf-8', 'utf-16le']:
+            try:
+                decoded_bytes = base64.b64decode(b64)
+                decoded_str = decoded_bytes.decode(encoding, errors='ignore')
+                # Heuristics: decoded must be mostly printable or contain powershell keywords
+                if any(p.lower() in decoded_str.lower() for p in ps_patterns) or sum(c.isprintable() for c in decoded_str) > 10:
+                    decoded.append(decoded_bytes)
+                    if encoding == 'utf-16le':
+                        found_patterns.append('Base64 UTF-16LE decoded')
+                    break
+            except Exception:
+                continue
+    suspect = bool(found_patterns or decoded)
+    return suspect, found_patterns, decoded
+
 def log_and_respond(path):
     req_id = str(uuid.uuid4())[:8]
     now = datetime.utcnow().isoformat() + 'Z'
@@ -70,13 +129,44 @@ def log_and_respond(path):
         'body_file': None,
         'ioc': iocs if iocs else None
     }
-    # Salva body POST
+    # Save POST body
     if body:
         bin_path = os.path.join(DATA_DIR, f'{req_id}-body.bin')
         with open(bin_path, 'wb') as f:
             f.write(body)
         log['body_file'] = os.path.basename(bin_path)
-        # Aggiorna ZIP giornaliero
+        # YARA scan
+        yara_matches = []
+        if yara_rules:
+            try:
+                matches = yara_rules.match(bin_path)
+                yara_matches = [m.rule for m in matches]
+            except Exception as e:
+                print(f"YARA scan error: {e}")
+        if yara_matches:
+            log['yara_matches'] = yara_matches
+        # PowerShell/base64 detection and YARA on decoded
+        ps_suspect, ps_patterns, decoded_payloads = detect_potential_powershell_base64(body)
+        if ps_suspect:
+            log['powershell_suspect'] = True
+            if ps_patterns:
+                log['powershell_patterns'] = ps_patterns
+            log['decoded_base64_count'] = len(decoded_payloads)
+            yara_matches_decoded = []
+            for idx, decoded in enumerate(decoded_payloads):
+                tmp_decoded_path = os.path.join(DATA_DIR, f'{req_id}-decoded-{idx}.bin')
+                with open(tmp_decoded_path, 'wb') as f:
+                    f.write(decoded)
+                if yara_rules:
+                    try:
+                        matches = yara_rules.match(tmp_decoded_path)
+                        yara_matches_decoded.extend([m.rule for m in matches])
+                    except Exception as e:
+                        print(f"YARA scan error (decoded): {e}")
+                os.remove(tmp_decoded_path)
+            if yara_matches_decoded:
+                log['yara_matches_decoded'] = list(set(yara_matches_decoded))
+        # Update daily ZIP
         zip_path = rotate_zip()
         with zipfile.ZipFile(zip_path, 'a') as z:
             z.write(bin_path, arcname=os.path.basename(bin_path))
@@ -96,7 +186,7 @@ def log_and_respond(path):
     resp.headers['Server'] = IIS_HEADER
     return resp
 
-# Decorator per endpoint sensibili
+# Decorator for sensitive endpoints
 
 def honeypot_route(rule, **options):
     def decorator(f):
@@ -107,7 +197,7 @@ def honeypot_route(rule, **options):
         return wrapper
     return decorator
 
-# Endpoint dedicati
+# Dedicated endpoints
 @honeypot_route('/favicon.ico', methods=['GET'])
 def favicon():
     return log_and_respond('/favicon.ico')
@@ -148,7 +238,7 @@ def info3_15():
 def xxx_15():
     return log_and_respond('/_layouts/15/xxx.aspx')
 
-# Catch-all finale
+# Final catch-all
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 def catch_all(path):

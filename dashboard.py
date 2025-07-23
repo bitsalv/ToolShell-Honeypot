@@ -6,6 +6,7 @@ from datetime import date
 import pandas as pd
 import io
 import zipfile
+import csv
 
 DATA_DIR = os.environ.get('DATA_DIR', './data')
 ACCESS_LOG = os.path.join(DATA_DIR, 'access.log')
@@ -62,12 +63,21 @@ if filtered_logs:
             "Method": log.get("method"),
             "Path": log.get("path"),
             "IP": log.get("remote_addr", "-"),
-            "IOC": ", ".join(log.get("ioc") or [])
+            "IOC": ", ".join(log.get("ioc") or []),
+            "YARA": ", ".join(log.get("yara_matches") or []),
+            "PS/Base64": "Yes" if log.get("powershell_suspect") else ""
         })
     df = pd.DataFrame(table_data)
-    def highlight_ioc(row):
-        return ['background-color: #ffcccc' if row['IOC'] else '' for _ in row]
-    st.dataframe(df.style.apply(highlight_ioc, axis=1), use_container_width=True)
+    def highlight_row(row):
+        if row['YARA']:
+            return ['background-color: #ffe066'] * len(row)
+        elif row['PS/Base64']:
+            return ['background-color: #fff3cd'] * len(row)
+        elif row['IOC']:
+            return ['background-color: #ffcccc'] * len(row)
+        else:
+            return [''] * len(row)
+    st.dataframe(df.style.apply(highlight_row, axis=1), use_container_width=True)
 
     # === REQUEST DETAILS SECTION ===
     st.subheader("Request Details")
@@ -78,9 +88,30 @@ if filtered_logs:
             st.markdown(f"**Remote address:** {log.get('remote_addr', '-')}")
             # IOC badges
             if log.get('ioc'):
-                st.markdown("**IOC Detected:** " + " ".join([f"<span style='background-color:#ffcccc; color:#b30000; padding:2px 6px; border-radius:6px; margin-right:4px'>{ioc}</span>" for ioc in log['ioc']]), unsafe_allow_html=True)
+                st.markdown("**IOC Detected:** " + " ".join([
+                    f"<span style='background-color:#ffcccc; color:#b30000; padding:2px 6px; border-radius:6px; margin-right:4px'>{ioc}</span>"
+                    for ioc in log['ioc']
+                ]), unsafe_allow_html=True)
             else:
                 st.markdown("**IOC Detected:** <span style='color:green'>None</span>", unsafe_allow_html=True)
+            # YARA badges
+            if log.get('yara_matches'):
+                st.markdown("**YARA Matches:** " + " ".join([
+                    f"<span style='background-color:#ffe066; color:#b36b00; padding:2px 6px; border-radius:6px; margin-right:4px'>{rule}</span>"
+                    for rule in log['yara_matches']
+                ]), unsafe_allow_html=True)
+            else:
+                st.markdown("**YARA Matches:** <span style='color:gray'>None</span>", unsafe_allow_html=True)
+            # PowerShell/Base64 detection
+            if log.get('powershell_suspect'):
+                st.markdown("**PowerShell/Base64 Suspect:** <span style='background-color:#fff3cd; color:#856404; padding:2px 6px; border-radius:6px;'>Yes</span>", unsafe_allow_html=True)
+                st.markdown("**Patterns found:** " + (", ".join(log.get('powershell_patterns', [])) or '<span style="color:gray">None</span>'), unsafe_allow_html=True)
+                st.markdown(f"**Decoded base64 payloads:** {log.get('decoded_base64_count', 0)}")
+                if log.get('yara_matches_decoded'):
+                    st.markdown("**YARA Matches (decoded):** " + " ".join([
+                        f"<span style='background-color:#ffe066; color:#b36b00; padding:2px 6px; border-radius:6px; margin-right:4px'>{rule}</span>"
+                        for rule in log['yara_matches_decoded']
+                    ]), unsafe_allow_html=True)
             st.markdown("**Headers:**")
             st.json(log.get('headers', {}))
             st.markdown("**Query args:**")
@@ -143,6 +174,36 @@ st.download_button(
     file_name="all_json_logs.zip",
     mime="application/zip",
     key="json_zip_global"
+)
+
+# --- EXPORT CSV SECTION ---
+csv_bytes = io.StringIO()
+fieldnames = ["id", "timestamp", "method", "path", "remote_addr", "ioc", "yara_matches", "powershell_suspect", "powershell_patterns", "decoded_base64_count", "yara_matches_decoded", "headers", "args", "body_file"]
+writer = csv.DictWriter(csv_bytes, fieldnames=fieldnames)
+writer.writeheader()
+for log in logs:
+    writer.writerow({
+        "id": log.get("id"),
+        "timestamp": log.get("timestamp"),
+        "method": log.get("method"),
+        "path": log.get("path"),
+        "remote_addr": log.get("remote_addr"),
+        "ioc": ";".join(log.get("ioc") or []),
+        "yara_matches": ";".join(log.get("yara_matches") or []),
+        "powershell_suspect": log.get("powershell_suspect", False),
+        "powershell_patterns": ";".join(log.get("powershell_patterns") or []),
+        "decoded_base64_count": log.get("decoded_base64_count", 0),
+        "yara_matches_decoded": ";".join(log.get("yara_matches_decoded") or []),
+        "headers": json.dumps(log.get("headers", {})),
+        "args": json.dumps(log.get("args", {})),
+        "body_file": log.get("body_file", "")
+    })
+st.download_button(
+    "Download all data (CSV)",
+    csv_bytes.getvalue(),
+    file_name="all_requests.csv",
+    mime="text/csv",
+    key="csv_global"
 )
 
 # === ACCESS LOG SECTION ===
