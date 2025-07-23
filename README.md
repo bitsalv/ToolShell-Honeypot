@@ -1,21 +1,14 @@
 # ToolShell-Honeypot (SharePoint Zero-Day)
 
-A Docker-based honeypot simulating a Microsoft IIS server vulnerable to ToolShell/SharePoint zero-day exploits. Designed to detect, log, and analyze exploitation attempts, including advanced obfuscation and webshell delivery techniques.
+A Docker-based honeypot simulating a Microsoft IIS server vulnerable to ToolShell/SharePoint zero-day exploits. Detects, logs, and analyzes exploitation attempts, including advanced obfuscation and webshell delivery techniques.
 
 ## Main Features
-- Accepts and logs all HTTP requests (GET, POST, ...)
-- Emulates IIS headers
-- Logs requests in JSON, POST bodies in .bin, and daily ZIP archives
+- Logs all HTTP requests (GET, POST, etc.)
+- Emulates IIS headers and key SharePoint endpoints
+- IOC tagging and YARA-based detection (including obfuscation)
 - HTTPS with self-signed certificate
-- Streamlit dashboard for data visualization and download
-- **Realistic endpoints:** catch-all + dedicated routes for endpoints used in ToolShell/SharePoint campaigns
-- **IOC detection:** automatic tagging of suspicious requests based on threat intelligence indicators
-- **Apache/Nginx-style access.log:** SIEM-compatible log file
-- **Visual alert:** stdout alert for IOC detection
-- **Daily ZIP/log rotation:** daily archives of POST bodies
-- **Dashboard features:** summary table with Time, Method, Path, IP, IOC, YARA, PowerShell/Base64; IOC filter; request details with safe body preview (hex and text); global downloads for all .bin, all JSON logs, and access.log
-- **YARA integration:** advanced rules for exploit, webshell, PowerShell, and obfuscation detection
-- **Advanced PowerShell detection:** identifies encoded, obfuscated, and concatenated PowerShell payloads, including base64 (UTF-8/UTF-16LE)
+- Streamlit dashboard for visualization and export
+- Modular, Docker-based architecture
 
 ## Architecture
 ```
@@ -24,89 +17,84 @@ Docker Compose
 └── dashboard (Streamlit, port 8501, /data)
 ```
 
-## Detection Pipeline (Python + YARA)
+## Detection Pipeline
 
-![Detection Pipeline](honeypot-flow.jpeg)
-*Figure: End-to-end detection pipeline for HTTP requests, Python logic, and YARA scanning.*
+```mermaid
+flowchart TD
+    A[HTTP Request Received] --> B{Python Detection}
+    B -->|Pattern match detected| C[Log Python detection fields]
+    B -->|Encoded content detected| D[Decode/Extract Payload]
+    B -->|No Python detected| F[YARA Scan - Raw]
+    D --> E[YARA Scan - Decoded]
+    C --> F[YARA Scan - Raw]
+    E --> G[Log YARA matches - Decoded]
+    F --> H[Log YARA matches - Raw]
+    C --> I[Save JSON log]
+    G --> I
+    H --> I
+    I --> J[Dashboard/Export]
+```
+*Detection pipeline: Python logic and YARA scanning for both raw and decoded payloads. All results are logged and visualized in the dashboard.*
 
-- **Python Detection:** Uses regex, heuristics, and custom logic to detect suspicious PowerShell, webshell, and exploit patterns, including obfuscation (concatenation, char codes, variable indirection, base64, etc.).
-- **YARA Scan:** Applies YARA rules to both raw and decoded payloads for known exploit/webshell/obfuscation signatures.
-- **Complementary:** Python detection can catch advanced, dynamic, or obfuscated patterns that YARA alone may miss; YARA provides standardized, portable detection for known threats.
+- **Python Detection:** Uses regex, heuristics, and custom logic to detect suspicious PowerShell, webshell, 
+and exploit patterns, including obfuscation (concatenation, char codes, variable indirection, base64, etc.).
+- **YARA Scan:** Applies YARA rules to both raw and decoded payloads for known exploit/webshell/obfuscation 
+signatures.
+- **Complementary:** Python detection can catch advanced, dynamic, or obfuscated patterns that YARA alone may 
+miss; YARA provides standardized, portable detection for known threats.
 
-### YARA Rule Matching Flow
-
-![Detection Pipeline and YARA Matching Flow](honeypot-flow.jpeg)
-*Figure: The detection pipeline and YARA matching flow—raw and decoded payloads are scanned, logged, and visualized in the dashboard.*
 
 ### IOC and Detection Matrix
-| Attack/IOC/Use Case                        | Python Detection | YARA Rule | Both |
-|--------------------------------------------|:----------------:|:---------:|:----:|
-| ToolPane exploit endpoint                  |        X         |           |      |
-| DisplayMode=Edit param                     |        X         |           |      |
-| a=/ToolPane.aspx param                     |        X         |           |      |
-| Referer SignOut.aspx                       |        X         |           |      |
-| Suspicious User-Agent                      |        X         |           |      |
-| Webshell probe endpoints                   |        X         |           |      |
-| ViewState payload                          |        X         |     X     |  X   |
-| Generic ASPX webshell                      |                  |     X     |      |
-| ToolShell/SharePoint exploit (ysoserial)   |                  |     X     |      |
-| PowerShell -EncodedCommand                 |        X         |     X     |  X   |
-| PowerShell base64 (UTF-8/UTF-16LE)         |        X         |     X     |  X   |
-| PowerShell concatenation ("I"+"EX")        |        X         |     X     |  X   |
-| PowerShell char codes ([char]73+...)       |        X         |     X     |  X   |
-| PowerShell variable indirection ($a='IEX') |        X         |     X     |  X   |
-| PowerShell pipeline (IEX (Get-Content ...))|        X         |     X     |  X   |
-| Invoke-Obfuscation artifacts               |        X         |     X     |  X   |
-| Suspicious long base64                     |        X         |     X     |  X   |
-| NOP sled, PE upload                        |                  |     X     |      |
+| Attack/IOC/Use Case                        | Python | YARA | Both |
+|--------------------------------------------|:------:|:----:|:----:|
+| ToolPane exploit endpoint                  |   X    |      |      |
+| DisplayMode=Edit param                     |   X    |      |      |
+| a=/ToolPane.aspx param                     |   X    |      |      |
+| Referer SignOut.aspx                       |   X    |      |      |
+| Suspicious User-Agent                      |   X    |      |      |
+| Webshell probe endpoints                   |   X    |      |      |
+| ViewState payload                          |   X    |  X   |  X   |
+| Generic ASPX webshell                      |        |  X   |      |
+| ToolShell/SharePoint exploit (ysoserial)   |        |  X   |      |
+| PowerShell -EncodedCommand                 |   X    |  X   |  X   |
+| PowerShell base64 (UTF-8/UTF-16LE)         |   X    |  X   |  X   |
+| PowerShell concatenation ("I"+"EX")        |   X    |  X   |  X   |
+| PowerShell char codes ([char]73+...)       |   X    |  X   |  X   |
+| PowerShell variable indirection ($a='IEX') |   X    |  X   |  X   |
+| PowerShell pipeline (IEX (Get-Content ...))|   X    |  X   |  X   |
+| Invoke-Obfuscation artifacts               |   X    |  X   |  X   |
+| Suspicious long base64                     |   X    |  X   |  X   |
+| NOP sled, PE upload                        |        |  X   |      |
 
 ## Monitored Endpoints and Patterns
-The server emulates and logs in detail:
 - `/` (catch-all)
 - `/favicon.ico`
 - `/_layouts/SignOut.aspx`
-- `/_layouts/15/ToolPane.aspx` and `/_layouts/16/ToolPane.aspx` (POST/GET, parameters DisplayMode=Edit, a=/ToolPane.aspx)
+- `/_layouts/15/ToolPane.aspx` and `/_layouts/16/ToolPane.aspx` (POST/GET, parameters DisplayMode=Edit, a=/
+ToolPane.aspx)
 - `/_layouts/15/spinstall0.aspx`, `/_layouts/16/spinstall0.aspx`, `spinstall.aspx`, `spinstall1.aspx`, `info3.aspx`, `xxx.aspx`
 
-## Indicators of Compromise (IOC) Detected
-Each request is analyzed for the following IOCs (Indicators of Compromise):
-- **ToolPane exploit endpoint:** Requests to `/ToolPane.aspx` endpoints, especially with suspicious parameters.
-- **DisplayMode=Edit:** Presence of the `DisplayMode=Edit` parameter in the query string.
-- **a=/ToolPane.aspx:** Presence of the `a=/ToolPane.aspx` parameter in the query string.
-- **Referer SignOut.aspx:** Requests with the `Referer` header set to `/layouts/SignOut.aspx` or its variants.
-- **Suspicious User-Agent:** Requests with User-Agent strings known from real-world attacks (e.g., Firefox/120.0).
-- **Webshell probe:** Requests to known webshell endpoints (`spinstall0.aspx`, `spinstall.aspx`, `spinstall1.aspx`, `info3.aspx`, `xxx.aspx`).
-- **ViewState payload:** POST requests containing `__VIEWSTATE` in the body.
+## Indicators of Compromise (IOC)
+- ToolPane exploit endpoint (with suspicious params)
+- DisplayMode=Edit param
+- a=/ToolPane.aspx param
+- Referer SignOut.aspx
+- Suspicious User-Agent (e.g., Firefox/120.0)
+- Webshell probe endpoints
+- ViewState payload in POST body
 
-**All detected IOCs are shown as badges in the dashboard and can be used to filter requests.**
+*All detected IOCs are shown as badges in the dashboard and can be used to filter requests.*
 
 ## YARA Rules and Advanced Detection
-The honeypot uses a comprehensive set of YARA rules to detect:
-- ToolShell/SharePoint exploits (ViewState, ysoserial, etc.)
-- Generic and specific ASPX webshells
-- PowerShell encoded commands and suspicious base64
-- PowerShell command concatenation (e.g. 'I'+'EX')
-- Char code construction ([char]73+[char]69+[char]88)
-- Variable indirection for IEX
-- UTF-16LE base64 (PowerShell encoded)
-- Pipeline and obfuscation artifacts (Invoke-Obfuscation, scriptblock, etc.)
-- NOP sleds, PE uploads, and other binary payloads
-
-YARA rules are applied to both the raw POST body and any decoded payloads (e.g., base64, UTF-16LE). All matches are logged and shown in the dashboard.
+- Detects known exploits, webshells, PowerShell encoded/obfuscated payloads, and suspicious binaries
+- Rules are applied to both raw and decoded (base64, UTF-16LE) payloads
+- Easily extensible for new threats
 
 ## Data Collected and Displayed
-- **Summary Table:** Shows Time, Method, Path, IP, IOC, YARA, PowerShell/Base64 for each request.
-- **Request Details:** For each request, you can view:
-  - All HTTP headers
-  - Query parameters
-  - Remote IP address
-  - IOC badges
-  - YARA matches (raw and decoded)
-  - PowerShell patterns detected (including obfuscation)
-  - Body preview (hex for all, and as text if Content-Type is textual)
-  - Download buttons for body and JSON log
-- **Global Downloads:** Download all POST bodies (.bin) as a daily ZIP, all JSON logs as a ZIP, and the full access.log.
-- **Access Log:** Apache/Nginx-style log, one line per request, with IOC information.
+- Request metadata: method, path, IP, headers, query args, IOC tags, YARA matches, PowerShell patterns
+- POST bodies: saved as .bin files, archived daily in ZIP
+- Logs: JSON per request, Apache-style access.log
+- Dashboard: filter/search, download bodies/logs, CSV export, IOC/YARA highlighting
 
 ## Quick Start
 1. Generate a self-signed certificate:
@@ -148,6 +136,13 @@ The IOC patterns, YARA rules, and detection logic are based on real-world attack
 - Probing of webshell endpoints
 - Detection of ViewState payloads in POST bodies
 - Advanced PowerShell obfuscation and webshell delivery techniques
+
+**Relevant CVEs:**
+- [CVE-2025-49704](https://www.cve.org/CVERecord?id=CVE-2025-49704): Improper code generation control (code injection) in SharePoint
+- [CVE-2025-49706](https://www.cve.org/CVERecord?id=CVE-2025-49706): Improper authentication in SharePoint
+- [CVE-2025-53770](https://www.cve.org/CVERecord?id=CVE-2025-53770): Deserialization of untrusted data in SharePoint
+- [CVE-2025-53771](https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-53771): Path traversal in SharePoint
+
 
 ## TODO
 - Webhook alerting, advanced parsing, SIEM integration, dashboard authentication... 
