@@ -1,6 +1,7 @@
 # ToolShell-Honeypot (SharePoint Zero-Day)
 
-A Docker-based honeypot simulating a Microsoft IIS server vulnerable to ToolShell/SharePoint zero-day exploits. Detects, logs, and analyzes exploitation attempts, including advanced obfuscation and webshell delivery techniques.
+A Docker-based honeypot focused on detecting and logging exploitation attempts against Microsoft SharePoint zero-day vulnerabilities.  
+**This honeypot is designed for early detection and threat intelligence, not for simulating a full SharePoint environment or post-exploitation activity.**
 
 ## Main Features
 - Logs all HTTP requests (GET, POST, etc.)
@@ -9,6 +10,18 @@ A Docker-based honeypot simulating a Microsoft IIS server vulnerable to ToolShel
 - HTTPS with self-signed certificate
 - Streamlit dashboard for visualization and export
 - Modular, Docker-based architecture
+
+## Coverage and Limitations
+
+**What this honeypot does:**
+- Detects and logs exploit attempts targeting known SharePoint vulnerabilities ([CVE-2025-49704](https://www.cve.org/CVERecord?id=CVE-2025-49704), [CVE-2025-49706](https://www.cve.org/CVERecord?id=CVE-2025-49706), [CVE-2025-53770](https://www.cve.org/CVERecord?id=CVE-2025-53770), [CVE-2025-53771](https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-53771))
+- Captures payloads, including webshells, encoded commands, and obfuscated content
+- Provides IOC and YARA-based detection for threat intelligence and research
+
+**What this honeypot does NOT do:**
+- Does **not** simulate full SharePoint authentication, session management, or dynamic content
+- Does **not** allow post-exploitation interaction (e.g., webshell command execution, file download/upload, lateral movement)
+- Attackers may quickly realize the system is a honeypot after the initial response
 
 ## Architecture
 ```
@@ -168,4 +181,4 @@ The IOC patterns, YARA rules, and detection logic are based on real-world attack
 
 
 ## TODO
-- Webhook alerting, advanced parsing, SIEM integration, dashboard authentication... 
+- Webhook alerting, advanced parsing, SIEM integration, dashboard authentication, extend honeypot capabilities to simulate authentication, session management, dynamic content, limited post-exploitation interaction (e.g., webshell command execution, file upload/download) for deeper attacker engagement and analysis and many more...
