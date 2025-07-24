@@ -66,7 +66,7 @@ def detect_iocs(path, headers, method, args, body):
 
 def detect_potential_powershell_base64(body_bytes):
     body_str = body_bytes.decode('utf-8', errors='ignore')
-    # Ampliamento pattern PowerShell
+
     ps_patterns = [
         "powershell", "FromBase64String", "IEX", "Invoke-Expression", "Invoke-WebRequest",
         "New-Object Net.WebClient", "Set-ExecutionPolicy", "Add-MpPreference", "Start-Process",
@@ -74,7 +74,7 @@ def detect_potential_powershell_base64(body_bytes):
         "DownloadString", "cmd.exe /c powershell", "Invoke-DownloadFile"
     ]
     found_patterns = [p for p in ps_patterns if p.lower() in body_str.lower()]
-    # Cerca anche pattern offuscati (es. I`E`X, concatenazione, char codes, variabili)
+
     if re.search(r'I[`\-]?E[`\-]?X', body_str, re.IGNORECASE):
         found_patterns.append('IEX (obfuscated)')
     if re.search(r'("I"\s*\+\s*"EX")|(\'I\'\s*\+\s*\'EX\')', body_str, re.IGNORECASE):
@@ -91,7 +91,7 @@ def detect_potential_powershell_base64(body_bytes):
         found_patterns.append('Get-Content pipeline')
     if re.search(r'Invoke-Obfuscation', body_str, re.IGNORECASE):
         found_patterns.append('Invoke-Obfuscation artifact')
-    # Cerca stringhe base64 lunghe (anche senza -EncodedCommand)
+
     b64_candidates = re.findall(r'([A-Za-z0-9+/=]{40,})', body_str)
     decoded = []
     # Decodifica base64 sia UTF-8 che UTF-16LE
@@ -170,18 +170,18 @@ def log_and_respond(path):
         zip_path = rotate_zip()
         with zipfile.ZipFile(zip_path, 'a') as z:
             z.write(bin_path, arcname=os.path.basename(bin_path))
-    # Salva log JSON
+    # Save log JSON
     json_path = os.path.join(DATA_DIR, f'{req_id}-headers.json')
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(log, f, indent=2)
-    # Log access.log stile Apache
+
     access_line = f'{now} {request.remote_addr} "{request.method} {path} {request.environ.get("SERVER_PROTOCOL")}" {headers.get("User-Agent","-")} {log["ioc"] if log["ioc"] else "-"}'
     log_access(access_line)
-    # Log su stdout
+
     print(json.dumps(log, indent=2))
     if iocs:
         print(f'*** ALERT: IOC detected! {iocs} ***')
-    # Risposta
+
     resp = make_response('OK', 200)
     resp.headers['Server'] = IIS_HEADER
     return resp
