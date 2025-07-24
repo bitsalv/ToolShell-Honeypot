@@ -123,6 +123,29 @@ ToolPane.aspx)
    ```
    These scripts will send a variety of requests to the honeypot, simulating real-world attack and probe scenarios. After running them, check the dashboard at http://localhost:8501 to review the results, IOC detection, and data previews.
 
+## Service Management (manage.sh)
+A management script is provided for easy control of the honeypot and dashboard services.
+
+**Usage:**
+```bash
+cd ToolShell-Honeypot
+chmod +x manage.sh   # (first time only)
+./manage.sh
+```
+
+**Menu options:**
+- 0: Build all Docker images
+- 1: Start only the honeypot
+- 2: Start only the dashboard
+- 3: Start both honeypot and dashboard
+- 4: Show status
+- 5: Stop only the honeypot
+- 6: Stop only the dashboard
+- 7: Stop all containers
+- q: Quit
+
+
+
 ## Notes
 - Data is saved in ./data
 - ZIP archives are rotated daily (YYYY-MM-DD.zip)
