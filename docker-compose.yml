@@ -10,6 +10,21 @@ services:
       - "443:443"
     environment:
       - DATA_DIR=/data
+    depends_on:
+      - analyzer
+  
+  analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile.analyzer
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - YARA_RULES_PATH=/app/yara_rules/
+      - ANALYZER_SCAN_INTERVAL=1.0
+    restart: unless-stopped
+  
   dashboard:
     build:
       context: .
@@ -19,4 +34,6 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - DATA_DIR=/data 
+      - DATA_DIR=/data
+    depends_on:
+      - analyzer 

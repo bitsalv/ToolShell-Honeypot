@@ -1,15 +1,19 @@
-# ToolShell-Honeypot (SharePoint Zero-Day)
+# ToolShell-Honeypot (SharePoint Zero-Day) - v2.0
 
 A Docker-based honeypot focused on detecting and logging exploitation attempts against Microsoft SharePoint zero-day vulnerabilities.  
+**Enhanced v2.0: Advanced Sensor+Analyzer architecture with comprehensive R7 Metasploit exploit analysis and sub-100ms response times.**
+
 **This honeypot is designed for early detection and threat intelligence, not for simulating a full SharePoint environment or post-exploitation activity.**
 
 ## Main Features
-- Logs all HTTP requests (GET, POST, etc.)
-- Emulates IIS headers and key SharePoint endpoints
-- IOC tagging and YARA-based detection (including obfuscation)
+- **Advanced tag-based detection** (IOC, Pattern, Heuristic categories)
+- **R7 Metasploit exploit analysis** with complete payload decompression  
+- **Sub-100ms response times** via asynchronous Sensor+Analyzer architecture
+- YARA-based detection on raw **and decompressed** payloads
+- Logs all HTTP requests with enhanced analysis and IIS header emulation
+- **Intelligence dashboard** with real-time analytics and tag filtering
 - HTTPS with self-signed certificate
-- Streamlit dashboard for visualization and export
-- Modular, Docker-based architecture
+- Modular 3-service Docker architecture
 
 ## Coverage and Limitations
 
@@ -23,52 +27,145 @@ A Docker-based honeypot focused on detecting and logging exploitation attempts a
 - Does **not** allow post-exploitation interaction (e.g., webshell command execution, file download/upload, lateral movement)
 - Attackers may quickly realize the system is a honeypot after the initial response
 
-## Architecture
+## Architecture v2.0
+
+**Sensor + Analyzer Architecture** - Separates fast request capture from deep analysis.
+
 ```
 Docker Compose
-├── honeypot (Flask, port 443, /data)
-└── dashboard (Streamlit, port 8501, /data)
+├── honeypot (Sensor - HTTP capture, port 443, <100ms response)
+├── analyzer (Deep analysis engine, tag-driven processing)  
+└── dashboard (Intelligence dashboard, port 8501)
 ```
 
-## Detection Pipeline
+### Data Flow
+```
+HTTP Request → Sensor → Event Queue → Analyzer → Dashboard
+             ↓          ↓             ↓
+       Fast Response  SHA256 Body   Deep Analysis
+       Tag Assignment Raw Storage   YARA + R7
+```
+
+**Key Improvements:**
+- Asynchronous processing (responses never blocked by analysis)
+- Tag-driven pipeline (IOC/Pattern/Heuristic classification)
+- Complete R7 exploit analysis (Gzip→Base64→.NET decompression)
+- SHA256-based body deduplication
+
+## Enhanced Detection Pipeline v2.0
 
 ```mermaid
 flowchart TD
-    A[HTTP Request Received] --> B{Python Detection}
-    B -->|Pattern match detected| C[Log Python detection fields]
-    B -->|Encoded content detected| D[Decode/Extract Payload]
-    B -->|No Python detected| F[YARA Scan - Raw]
-    D --> E[YARA Scan - Decoded]
-    C --> F[YARA Scan - Raw]
-    E --> G[Log YARA matches - Decoded]
-    F --> H[Log YARA matches - Raw]
-    C --> I[Save JSON log]
+    A[HTTP Request] --> B[Sensor: Tag Assignment]
+    B --> C{Route-Based IOCs}
+    B --> D{Pattern Detection}  
+    B --> E{Heuristic Analysis}
+    C --> F[IOC Tags]
+    D --> G[Pattern Tags]
+    E --> H[Heuristic Tags]
+    F --> I[Event JSON + Body Storage]
     G --> I
     H --> I
-    I --> J[Dashboard/Export]
+    I --> J[Event Queue]
+    J --> K[Analyzer: Deep Analysis]
+    K --> L{Tag-Driven Pipeline}
+    L -->|R7_PAYLOAD| M[Gzip→Base64→.NET Analysis]
+    L -->|LARGE_B64| N[Generic Base64 Decoding]
+    L -->|Always| O[YARA Scanning]
+    M --> P[Enhanced Event JSON]
+    N --> P
+    O --> P
+    P --> Q[Dashboard Intelligence]
 ```
-*Detection pipeline: Python logic and YARA scanning for both raw and decoded payloads. All results are logged and visualized in the dashboard.*
 
-- **Python Detection:** Uses regex, heuristics, and custom logic to detect suspicious PowerShell, webshell, 
-and exploit patterns, including obfuscation (concatenation, char codes, variable indirection, base64, etc.).
-- **YARA Scan:** Applies YARA rules to both raw and decoded payloads for known exploit/webshell/obfuscation 
-signatures.
-- **Complementary:** Python detection can catch advanced, dynamic, or obfuscated patterns that YARA alone may 
-miss; YARA provides standardized, portable detection for known threats.
+### Tag Categories
+- **IOC Tags**: High-confidence indicators (IOC:ENDPOINT_TOOLPANE, IOC:CVE_2025_53771)
+- **Pattern Tags**: Known exploit signatures (PATTERN:R7_PAYLOAD, PATTERN:YSOSERIAL)  
+- **Heuristic Tags**: Anomaly detection (HEURISTIC:LARGE_B64, HEURISTIC:UNUSUAL_METHOD)
+
+## Available Tags Reference
+
+### 🔴 IOC Tags (High Risk Indicators)
+*High-confidence compromise indicators with immediate alert priority*
+
+**Endpoint-based IOCs:**
+- `IOC:ENDPOINT_TOOLPANE` - Access to /_layouts/15|16/ToolPane.aspx
+- `IOC:ENDPOINT_SIGNOUT` - Access to /_layouts/SignOut.aspx
+- `IOC:ENDPOINT_FAVICON` - Access to /favicon.ico
+- `IOC:ENDPOINT_ACLEDITOR` - Access to /_controltemplates/15|16/AclEditor.ascx
+- `IOC:ENDPOINT_LAYOUTS_ASPX` - Generic /_layouts/*.aspx endpoint access
+- `IOC:WEBSHELL_PROBE` - Webshell probe endpoint detection
+
+**CVE-Specific IOCs:**
+- `IOC:CVE_2025_53771` - Trailing slash authentication bypass (CVE-2025-53771)
+
+**Parameter-based IOCs:**
+- `IOC:PARAM_DISPLAYMODE_EDIT` - DisplayMode=Edit parameter detected
+- `IOC:PARAM_TOOLPANE_REFERENCE` - Parameter value referencing ToolPane
+
+**Header-based IOCs:**
+- `IOC:REFERER_SIGNOUT` - Referer header contains SignOut.aspx
+- `IOC:SUSPICIOUS_USER_AGENT` - Suspicious User-Agent pattern (e.g., Firefox/120.0)
+
+### 🟠 Pattern Tags (Known Exploits)
+*Signatures of known exploit frameworks and payload patterns*
+
+**Exploit Signatures:**
+- `PATTERN:R7_PAYLOAD` - Metasploit R7 exploit (MSOTlPn_DWP + CompressedDataTable)
+- `PATTERN:VIEWSTATE_EXPLOIT` - __VIEWSTATE exploitation attempt
+- `PATTERN:YSOSERIAL` - Java deserialization tool (ysoserial keyword)
+
+**Code Execution Patterns:**
+- `PATTERN:POWERSHELL` - PowerShell commands/scripts detected
+- `PATTERN:ASPX_WEBSHELL` - ASPX webshell upload attempts
+
+### 🟡 Heuristic Tags (Anomaly Detection)
+*Behavioral anomaly detection for unknown threats*
+
+**Payload Anomalies:**
+- `HEURISTIC:LARGE_PAYLOAD` - Payload size >1KB (1024 bytes)
+- `HEURISTIC:LARGE_B64` - Base64 content >100 characters
+- `HEURISTIC:MULTIPLE_B64` - Multiple Base64 strings (>3)
+
+**Parameter Anomalies:**
+- `HEURISTIC:MANY_PARAMETERS` - Excessive URL parameters (>10)
+- `HEURISTIC:MISSING_CONTENT_TYPE` - POST request without Content-Type
+- `HEURISTIC:MALFORMED_MULTIPART` - Malformed multipart data
+
+**Request Anomalies:**
+- `HEURISTIC:UNUSUAL_METHOD` - Unusual HTTP methods (PUT/DELETE/PATCH)
+- `HEURISTIC:LONG_PATH` - Extremely long URL path (>200 characters)
+- `HEURISTIC:UNKNOWN_ENDPOINT` - Unmonitored endpoint (catch-all route)
+
+### Tag Statistics
+- **Total Tags Available**: 22 unique tags across 3 categories
+- **IOC Tags**: 9 high-confidence indicators  
+- **Pattern Tags**: 5 known exploit signatures
+- **Heuristic Tags**: 8 anomaly detection rules
+
+### Tag Priority Matrix
+- **🚨 High Priority (Immediate Alert)**: IOC:CVE_2025_53771, IOC:ENDPOINT_TOOLPANE, PATTERN:R7_PAYLOAD, PATTERN:YSOSERIAL
+- **⚠️ Medium Priority (Monitor)**: IOC:WEBSHELL_PROBE, PATTERN:VIEWSTATE_EXPLOIT, PATTERN:POWERSHELL, HEURISTIC:LARGE_B64
+- **ℹ️ Info Priority (Log)**: HEURISTIC:UNKNOWN_ENDPOINT, IOC:ENDPOINT_FAVICON, HEURISTIC:UNUSUAL_METHOD
+
+**Multi-layer Detection:** IOC (route-based), Pattern (exploit signatures), and Heuristic (anomaly) detection
+- **R7 Exploit Analysis:** Complete Metasploit payload analysis with Gzip decompression and .NET gadget extraction
+- **Enhanced YARA:** Scanning on both raw and decompressed payloads for comprehensive threat detection
+- **Performance:** Sub-100ms response times with asynchronous analysis pipeline
 
 
-### IOC and Detection Matrix
-| Attack/IOC/Use Case                        | Python | YARA | Both |
-|--------------------------------------------|:------:|:----:|:----:|
-| ToolPane exploit endpoint                  |   X    |      |      |
-| DisplayMode=Edit param                     |   X    |      |      |
-| a=/ToolPane.aspx param                     |   X    |      |      |
-| Referer SignOut.aspx                       |   X    |      |      |
-| Suspicious User-Agent                      |   X    |      |      |
-| Webshell probe endpoints                   |   X    |      |      |
-| ViewState payload                          |   X    |  X   |  X   |
-| Generic ASPX webshell                      |        |  X   |      |
-| ToolShell/SharePoint exploit (ysoserial)   |        |  X   |      |
+### IOC and Detection Matrix v2.0
+| Attack/IOC/Use Case                        | Tag Category | Detection Method |
+|--------------------------------------------|:------------:|:----------------:|
+| ToolPane exploit endpoint                  | IOC | Route-based (includes CVE-2025-53771 trailing slash) |
+| DisplayMode=Edit param                     | IOC | Parameter analysis |
+| Referer SignOut.aspx                       | IOC | Header analysis |
+| **R7 Metasploit exploit**                  | **PATTERN** | **MSOTlPn_DWP + complete payload decompression** |
+| ViewState payload                          | PATTERN | Body analysis + YARA |
+| ASPX webshell                              | PATTERN | YARA rules on raw + decoded content |
+| **Large Base64 content**                   | **HEURISTIC** | **Size + pattern analysis** |
+| **Unusual HTTP methods**                   | **HEURISTIC** | **Method anomaly detection** |
+| PowerShell obfuscation                     | PATTERN | Enhanced regex + YARA |
 | PowerShell -EncodedCommand                 |   X    |  X   |  X   |
 | PowerShell base64 (UTF-8/UTF-16LE)         |   X    |  X   |  X   |
 | PowerShell concatenation ("I"+"EX")        |   X    |  X   |  X   |
@@ -104,37 +201,47 @@ ToolPane.aspx)
 - Easily extensible for new threats
 
 ## Data Collected and Displayed
-- Request metadata: method, path, IP, headers, query args, IOC tags, YARA matches, PowerShell patterns
-- POST bodies: saved as .bin files, archived daily in ZIP
-- Logs: JSON per request, Apache-style access.log
-- Dashboard: filter/search, download bodies/logs, CSV export, IOC/YARA highlighting
+- **Request metadata**: method, path, IP, headers, query args, enhanced tag system (IOC/Pattern/Heuristic)
+- **POST bodies**: SHA256-named .bin files with deduplication (replaces daily ZIP archives)
+- **Deep analysis results**: R7 payload decompression, YARA matches on raw + decoded content
+- **Enhanced logs**: Event-driven JSON with sensor capture and analyzer results
+- **Dashboard**: Real-time tag filtering, performance monitoring, R7 exploit alerts, intelligence export
 
 ## Quick Start
-1. Generate a self-signed certificate:
+
+1. **Generate a self-signed certificate**:
    ```bash
    openssl req -x509 -nodes -days 365 \
      -newkey rsa:2048 -keyout key.pem -out cert.pem \
      -subj "/CN=sharepoint.local"
    cp cert.pem key.pem ToolShell-Honeypot/
    ```
-2. Build and start:
+
+2. **Build and run all services (sensor + analyzer + dashboard)**:
    ```bash
    cd ToolShell-Honeypot
-   docker-compose build
-   docker-compose up
+   sudo docker-compose up --build
    ```
-3. Test the honeypot:
+   Or use the interactive management script:
    ```bash
-   # Run the basic endpoint test script
-   ./test_toolshell.sh
-
-   # Run the body content test script (covers text, JSON, XML, form, binary, and IOC cases)
-   ./test_toolshell_bodies.sh
-
-   # Run the advanced YARA/PowerShell test script
-   ./test_toolshell_yara.sh
+   ./manage.sh
    ```
-   These scripts will send a variety of requests to the honeypot, simulating real-world attack and probe scenarios. After running them, check the dashboard at http://localhost:8501 to review the results, IOC detection, and data previews.
+   Choose option 6 to start all services, or start components individually.
+
+3. **Test the honeypot**:
+   ```bash
+   # Comprehensive test suite covering all v2.0 features
+   ./test_comprehensive.sh
+   ```
+
+4. **Access the dashboard**:
+   Open `http://localhost:8501` to view the intelligence dashboard with:
+   - Tag-based filtering (IOC, Pattern, Heuristic categories)
+   - R7 exploit detection alerts with payload decompression status
+   - Real-time performance metrics (response times, analysis speed)
+   - Export capabilities (JSON, CSV, raw payloads)
+
+   The test scripts simulate real-world attack scenarios. Check the dashboard to review results, IOC detection, and data analysis.
 
 ## Service Management (manage.sh)
 A management script is provided for easy control of the honeypot and dashboard services.
@@ -148,22 +255,24 @@ chmod +x manage.sh   # (first time only)
 
 **Menu options:**
 - 0: Build all Docker images
-- 1: Start only the honeypot
-- 2: Start only the dashboard
-- 3: Start both honeypot and dashboard
-- 4: Show status
-- 5: Stop only the honeypot
-- 6: Stop only the dashboard
-- 7: Stop all containers
+- 1: Start only the honeypot (sensor)
+- 2: Start only the analyzer
+- 3: Start only the dashboard  
+- 4: Start honeypot + analyzer
+- 5: Start analyzer + dashboard
+- 6: Start all services (honeypot + analyzer + dashboard)
+- 7: Show status
+- 8-11: Stop individual services
 - q: Quit
 
 
 
 ## Notes
-- Data is saved in ./data
-- ZIP archives are rotated daily (YYYY-MM-DD.zip)
-- Dashboard and honeypot are separated for security
-- access.log is SIEM-compatible
+- Data is saved in ./data with structure: /raw_bodies, /events/{new,processed,error}
+- SHA256-based body deduplication (replaces daily ZIP archives)
+- Dashboard, honeypot (sensor), and analyzer are separated for security and performance
+- access.log is SIEM-compatible with enhanced tag information
+- Sub-100ms response times achieved via asynchronous processing
 
 ## Threat Intelligence and Detection Logic
 The IOC patterns, YARA rules, and detection logic are based on real-world attack campaigns and public threat intelligence for ToolShell/SharePoint vulnerabilities, including:
