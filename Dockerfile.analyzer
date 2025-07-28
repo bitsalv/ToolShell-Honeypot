@@ -1,0 +1,35 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    pkg-config \
+    autoconf \
+    automake \
+    libtool \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY analyzer.py .
+COPY yara_rules/ ./yara_rules/
+
+# Create data directory
+RUN mkdir -p /data
+
+# Set environment variables
+ENV DATA_DIR=/data
+ENV YARA_RULES_PATH=/app/yara_rules/
+ENV ANALYZER_SCAN_INTERVAL=1.0
+ENV PYTHONUNBUFFERED=1
+
+# Run the analyzer
+CMD ["python", "analyzer.py"] 
