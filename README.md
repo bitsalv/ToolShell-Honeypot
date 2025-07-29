@@ -1,7 +1,6 @@
-# ToolShell-Honeypot (SharePoint Zero-Day) - v2.0
+# ToolShell-Honeypot (SharePoint Zero-Day)
 
-A Docker-based honeypot focused on detecting and logging exploitation attempts against Microsoft SharePoint zero-day vulnerabilities.  
-**Enhanced v2.0: Advanced Sensor+Analyzer architecture with comprehensive R7 Metasploit exploit analysis and sub-100ms response times.**
+A Docker-based honeypot focused on detecting and logging exploitation attempts against Microsoft SharePoint zero-day vulnerabilities.
 
 **This honeypot is designed for early detection and threat intelligence, not for simulating a full SharePoint environment or post-exploitation activity.**
 
@@ -27,9 +26,7 @@ A Docker-based honeypot focused on detecting and logging exploitation attempts a
 - Does **not** allow post-exploitation interaction (e.g., webshell command execution, file download/upload, lateral movement)
 - Attackers may quickly realize the system is a honeypot after the initial response
 
-## Architecture v2.0
-
-**Sensor + Analyzer Architecture** - Separates fast request capture from deep analysis.
+## Architecture
 
 ```
 Docker Compose
@@ -52,7 +49,7 @@ HTTP Request → Sensor → Event Queue → Analyzer → Dashboard
 - Complete R7 exploit analysis (Gzip→Base64→.NET decompression)
 - SHA256-based body deduplication
 
-## Enhanced Detection Pipeline v2.0
+## Detection Pipeline
 
 ```mermaid
 flowchart TD
@@ -137,44 +134,6 @@ flowchart TD
 - `HEURISTIC:LONG_PATH` - Extremely long URL path (>200 characters)
 - `HEURISTIC:UNKNOWN_ENDPOINT` - Unmonitored endpoint (catch-all route)
 
-### Tag Statistics
-- **Total Tags Available**: 22 unique tags across 3 categories
-- **IOC Tags**: 9 high-confidence indicators  
-- **Pattern Tags**: 5 known exploit signatures
-- **Heuristic Tags**: 8 anomaly detection rules
-
-### Tag Priority Matrix
-- **🚨 High Priority (Immediate Alert)**: IOC:CVE_2025_53771, IOC:ENDPOINT_TOOLPANE, PATTERN:R7_PAYLOAD, PATTERN:YSOSERIAL
-- **⚠️ Medium Priority (Monitor)**: IOC:WEBSHELL_PROBE, PATTERN:VIEWSTATE_EXPLOIT, PATTERN:POWERSHELL, HEURISTIC:LARGE_B64
-- **ℹ️ Info Priority (Log)**: HEURISTIC:UNKNOWN_ENDPOINT, IOC:ENDPOINT_FAVICON, HEURISTIC:UNUSUAL_METHOD
-
-**Multi-layer Detection:** IOC (route-based), Pattern (exploit signatures), and Heuristic (anomaly) detection
-- **R7 Exploit Analysis:** Complete Metasploit payload analysis with Gzip decompression and .NET gadget extraction
-- **Enhanced YARA:** Scanning on both raw and decompressed payloads for comprehensive threat detection
-- **Performance:** Sub-100ms response times with asynchronous analysis pipeline
-
-
-### IOC and Detection Matrix v2.0
-| Attack/IOC/Use Case                        | Tag Category | Detection Method |
-|--------------------------------------------|:------------:|:----------------:|
-| ToolPane exploit endpoint                  | IOC | Route-based (includes CVE-2025-53771 trailing slash) |
-| DisplayMode=Edit param                     | IOC | Parameter analysis |
-| Referer SignOut.aspx                       | IOC | Header analysis |
-| **R7 Metasploit exploit**                  | **PATTERN** | **MSOTlPn_DWP + complete payload decompression** |
-| ViewState payload                          | PATTERN | Body analysis + YARA |
-| ASPX webshell                              | PATTERN | YARA rules on raw + decoded content |
-| **Large Base64 content**                   | **HEURISTIC** | **Size + pattern analysis** |
-| **Unusual HTTP methods**                   | **HEURISTIC** | **Method anomaly detection** |
-| PowerShell obfuscation                     | PATTERN | Enhanced regex + YARA |
-| PowerShell -EncodedCommand                 |   X    |  X   |  X   |
-| PowerShell base64 (UTF-8/UTF-16LE)         |   X    |  X   |  X   |
-| PowerShell concatenation ("I"+"EX")        |   X    |  X   |  X   |
-| PowerShell char codes ([char]73+...)       |   X    |  X   |  X   |
-| PowerShell variable indirection ($a='IEX') |   X    |  X   |  X   |
-| PowerShell pipeline (IEX (Get-Content ...))|   X    |  X   |  X   |
-| Invoke-Obfuscation artifacts               |   X    |  X   |  X   |
-| Suspicious long base64                     |   X    |  X   |  X   |
-| NOP sled, PE upload                        |        |  X   |      |
 
 ## Monitored Endpoints and Patterns
 - `/` (catch-all)
@@ -193,12 +152,12 @@ ToolPane.aspx)
 - Webshell probe endpoints
 - ViewState payload in POST body
 
-*All detected IOCs are shown as badges in the dashboard and can be used to filter requests.*
-
 ## YARA Rules and Advanced Detection
 - Detects known exploits, webshells, PowerShell encoded/obfuscated payloads, and suspicious binaries
 - Rules are applied to both raw and decoded (base64, UTF-16LE) payloads
 - Easily extensible for new threats
+- **Custom Rules**: You can add your own YARA rules to the `yara_rules/` directory
+- **Rule Examples**: For additional rule examples and community contributions, see [awesome-yara](https://github.com/InQuest/awesome-yara)
 
 ## Data Collected and Displayed
 - **Request metadata**: method, path, IP, headers, query args, enhanced tag system (IOC/Pattern/Heuristic)
@@ -217,7 +176,7 @@ ToolPane.aspx)
    cp cert.pem key.pem ToolShell-Honeypot/
    ```
 
-2. **Build and run all services (sensor + analyzer + dashboard)**:
+2. **Build and run all services**:
    ```bash
    cd ToolShell-Honeypot
    sudo docker-compose up --build
@@ -230,7 +189,7 @@ ToolPane.aspx)
 
 3. **Test the honeypot**:
    ```bash
-   # Comprehensive test suite covering all v2.0 features
+   # Comprehensive test suite covering all features
    ./test_comprehensive.sh
    ```
 
@@ -265,8 +224,6 @@ chmod +x manage.sh   # (first time only)
 - 8-11: Stop individual services
 - q: Quit
 
-
-
 ## Notes
 - Data is saved in ./data with structure: /raw_bodies, /events/{new,processed,error}
 - SHA256-based body deduplication (replaces daily ZIP archives)
@@ -288,6 +245,6 @@ The IOC patterns, YARA rules, and detection logic are based on real-world attack
 - [CVE-2025-53770](https://www.cve.org/CVERecord?id=CVE-2025-53770): Deserialization of untrusted data in SharePoint
 - [CVE-2025-53771](https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-53771): Path traversal in SharePoint
 
-
 ## TODO
 - Webhook alerting, advanced parsing, SIEM integration, dashboard authentication, extend honeypot capabilities to simulate authentication, session management, dynamic content, limited post-exploitation interaction (e.g., webshell command execution, file upload/download) for deeper attacker engagement and analysis and many more...
+
