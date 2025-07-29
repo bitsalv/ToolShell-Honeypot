@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ToolShell Honeypot - Dashboard v2.0
+ToolShell Honeypot - Dashboard
 Updated dashboard for the new sensor/analyzer architecture
 """
 
@@ -22,7 +22,7 @@ ACCESS_LOG_PATH = os.path.join(DATA_DIR, 'access.log')
 
 # Page config
 st.set_page_config(
-    page_title="ToolShell Honeypot v2.0",
+    page_title="Toolshell Honeypot",
     page_icon="🍯",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -31,105 +31,143 @@ st.set_page_config(
 # Custom CSS for modern, minimal design
 st.markdown("""
 <style>
-    /* Sidebar styling */
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    .stDeployButton {display: none;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Clean sidebar styling */
     .sidebar-content {
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 8px;
-        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background: #fafafa;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
     }
     
-    /* Color legend */
+    /* Slim color legend */
     .color-legend {
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 4px solid #007acc;
-        margin-bottom: 20px;
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #e1e5e9;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .color-legend h4 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #374151;
     }
     
-    /* Tag styling */
+    /* Slim tag styling */
     .tag-ioc { 
-        background: #FF4444; 
+        background: linear-gradient(135deg, #ef4444, #dc2626);
         color: white; 
-        padding: 2px 8px; 
-        border-radius: 12px; 
-        font-size: 0.8em; 
-        margin: 2px;
+        padding: 2px 6px; 
+        border-radius: 4px; 
+        font-size: 0.75em; 
+        font-weight: 500;
+        margin: 1px;
         display: inline-block;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     .tag-pattern { 
-        background: #FF8800; 
+        background: linear-gradient(135deg, #f97316, #ea580c);
         color: white; 
-        padding: 2px 8px; 
-        border-radius: 12px; 
-        font-size: 0.8em; 
-        margin: 2px;
+        padding: 2px 6px; 
+        border-radius: 4px; 
+        font-size: 0.75em; 
+        font-weight: 500;
+        margin: 1px;
         display: inline-block;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     .tag-heuristic { 
-        background: #FFBB00; 
+        background: linear-gradient(135deg, #eab308, #ca8a04);
         color: white; 
-        padding: 2px 8px; 
-        border-radius: 12px; 
-        font-size: 0.8em; 
-        margin: 2px;
+        padding: 2px 6px; 
+        border-radius: 4px; 
+        font-size: 0.75em; 
+        font-weight: 500;
+        margin: 1px;
         display: inline-block;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     
     /* Status indicators */
-    .status-processed { color: #44AA44; font-weight: bold; }
-    .status-pending { color: #CCCCCC; font-weight: bold; }
-    .status-error { color: #FF4444; font-weight: bold; }
+    .status-processed { color: #059669; font-weight: 500; }
+    .status-pending { color: #6b7280; font-weight: 500; }
+    .status-error { color: #dc2626; font-weight: 500; }
     
-    /* Compact cards */
+    /* Slim metric cards */
     .metric-card {
-        background: white;
-        padding: 15px;
+        background: linear-gradient(135deg, #ffffff, #f9fafb);
+        padding: 16px;
         border-radius: 8px;
-        border-left: 4px solid #007acc;
+        border: 1px solid #e5e7eb;
         text-align: center;
-        margin: 5px;
+        margin: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .metric-card h3 {
+        margin: 0 0 4px 0;
+        font-size: 24px;
+        font-weight: 700;
+        color: #111827;
+    }
+    .metric-card p {
+        margin: 0;
+        font-size: 12px;
+        color: #6b7280;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
-    /* Modern table */
+    /* Clean table styling */
     .dataframe {
         border: none !important;
+        font-size: 0.9em;
     }
     .dataframe thead tr th {
-        background: #f8f9fa !important;
-        border-bottom: 2px solid #dee2e6 !important;
+        background: #f8fafc !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        color: #374151 !important;
+        font-weight: 600 !important;
+        font-size: 0.8em !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .dataframe tbody tr:hover {
+        background: #f1f5f9 !important;
     }
     
-    /* Auto-refresh indicator */
-    .refresh-indicator {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        background: #28a745;
-        color: white;
-        padding: 5px 10px;
-        border-radius: 15px;
-        font-size: 0.8em;
-        z-index: 1000;
+
+
+    
+    /* Sidebar title */
+    .main-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 16px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
 if 'current_page' not in st.session_state:
-    st.session_state.current_page = 'homepage'
-if 'last_refresh' not in st.session_state:
-    st.session_state.last_refresh = time.time()
-
-# Auto-refresh every 15 seconds
-current_time = time.time()
-if current_time - st.session_state.last_refresh > 15:
-    st.session_state.last_refresh = current_time
-    st.rerun()
-
-# Add refresh indicator
-st.markdown('<div class="refresh-indicator">🔄 Auto-refresh: 15s</div>', unsafe_allow_html=True)
+    st.session_state.current_page = 'dashboard'
 
 def load_events():
     """Load events from processed and new directories"""
@@ -186,35 +224,16 @@ def format_tags_html(tags):
     return ' '.join(html_tags)
 
 def render_sidebar():
-    """Render collapsible sidebar with navigation and color legend"""
+    """Render sidebar with navigation and tag legend"""
     with st.sidebar:
-        st.markdown("# 🍯 ToolShell v2.0")
-        
-        # Color Legend
-        st.markdown("""
-        <div class="color-legend">
-            <h4>🎨 Tag Colors</h4>
-            <span class="tag-ioc">IOC: High Risk</span><br>
-            <span class="tag-pattern">PATTERN: Known Exploit</span><br>
-            <span class="tag-heuristic">HEURISTIC: Anomaly</span><br>
-            <hr>
-            <small>
-            <span class="status-processed">● Processed</span><br>
-            <span class="status-pending">● Pending</span><br>
-            <span class="status-error">● Error</span>
-            </small>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Navigation buttons (always visible)
-        st.markdown("### 📋 Navigation")
+        st.markdown('<div class="main-title">🍯 Toolshell Honeypot</div>', unsafe_allow_html=True)
         
         if st.button("🏠 Dashboard", use_container_width=True, 
-                    type="primary" if st.session_state.current_page == 'homepage' else "secondary"):
-            st.session_state.current_page = 'homepage'
+                    type="primary" if st.session_state.current_page == 'dashboard' else "secondary"):
+            st.session_state.current_page = 'dashboard'
             st.rerun()
             
-        if st.button("🔍 Event Analysis", use_container_width=True,
+        if st.button("🔍 Analysis", use_container_width=True,
                     type="primary" if st.session_state.current_page == 'analysis' else "secondary"):
             st.session_state.current_page = 'analysis'
             st.rerun()
@@ -224,17 +243,29 @@ def render_sidebar():
             st.session_state.current_page = 'export'
             st.rerun()
         
-        # Manual refresh button at bottom
         st.markdown("---")
-        if st.button("🔄 Refresh Now", use_container_width=True):
-            st.session_state.last_refresh = time.time()
-            st.rerun()
+        
+        # Slim Color Legend
+        st.markdown("""
+        <div class="color-legend">
+            <h4>🎨 Tag Colors</h4>
+            <span class="tag-ioc">IOC</span>
+            <span class="tag-pattern">PATTERN</span>
+            <span class="tag-heuristic">HEURISTIC</span>
+            <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;">
+            <div style="font-size: 0.75em;">
+                <span class="status-processed">● Processed</span><br>
+                <span class="status-pending">● Pending</span><br>
+                <span class="status-error">● Error</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 def render_homepage(events):
     """Render homepage with compact stats and full events table"""
-    st.markdown("# 🏠 Dashboard Overview")
+    st.markdown('<div class="main-title">🏠 Dashboard Overview</div>', unsafe_allow_html=True)
     
-    # Compact metrics cards
+    # Slim metrics cards
     col1, col2, col3, col4 = st.columns(4)
     
     total_events = len(events)
@@ -262,7 +293,7 @@ def render_homepage(events):
         st.markdown(f"""
         <div class="metric-card">
             <h3>{r7_events}</h3>
-            <p>R7 Detections</p>
+            <p>R7 Exploits</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -306,7 +337,6 @@ def render_homepage(events):
 
 def render_event_analysis(events):
     """Render detailed event analysis with filtering"""
-    st.markdown("# 🔍 Event Analysis")
     
     if not events:
         st.info("No events to analyze.")
@@ -379,7 +409,6 @@ def render_event_analysis(events):
 
 def render_export_section(events):
     """Render export and download section"""
-    st.markdown("# 📥 Export & Downloads")
     
     col1, col2 = st.columns(2)
     
@@ -464,8 +493,8 @@ def main():
     # Load events
     events = load_events()
     
-    # Render current page
-    if st.session_state.current_page == 'homepage':
+    # Render current page based on sidebar navigation
+    if st.session_state.current_page == 'dashboard':
         render_homepage(events)
     elif st.session_state.current_page == 'analysis':
         render_event_analysis(events)
